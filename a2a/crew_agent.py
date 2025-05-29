@@ -1,8 +1,20 @@
 import warnings
+import importlib
 
 # Suppress specific warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._config")
-warnings.filterwarnings("ignore", category=UserWarning, module="crewai.telemtry.telemetry")
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    module="pydantic._internal._config",
+)
+
+if importlib.util.find_spec("crewai.telemetry.telemetry") is not None:
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        module="crewai.telemetry.telemetry",
+    )
+
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain")
 
 from fastapi import FastAPI, HTTPException
