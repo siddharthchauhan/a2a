@@ -5,20 +5,45 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._intern
 warnings.filterwarnings("ignore", category=UserWarning, module="crewai.telemtry.telemetry")
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain")
 
-from fastapi import FastAPI, HTTPException
-from openai import OpenAI
+from fastapi import FastAPI
 from a2a_utils import to_envelope
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-import os
+from crewai import Agent, Task, Crew
 
 app = FastAPI(title="AI-Image-Writer")
 
 # Create a thread pool executor for running sync code
 executor = ThreadPoolExecutor()
 
-# Initialize OpenAI client
-client = OpenAI()
+# Define the CrewAI agent and task
+writer_agent = Agent(
+    role="Poetic copywriter",
+    goal="Write witty one-sentence image descriptions",
+    backstory=(
+        "A creative writer employed by a design studio to craft short "
+        "captions that make people smile."
+    ),
+    allow_delegation=False,
+)
+
+caption_task = Task(
+    description=(
+        "Create a witty one-sentence description for the image prompt: {prompt}"
+    ),
+    expected_output="One witty sentence describing the image",
+    agent=writer_agent,
+)
+
+def run_crew(prompt: str) -> str:
+    """Execute the CrewAI task to generate a witty caption."""
+    crew = Crew(
+        agents=[writer_agent],
+        tasks=[caption_task],
+        verbose=False,
+    )
+    # kickoff is synchronous so we run it in a thread executor in the endpoint
+    return crew.kickoff(inputs={"prompt": prompt})
 
 # 2️⃣  Expose A2A endpoint
 @app.post("/a2a")
@@ -27,27 +52,10 @@ async def a2a_call(request: dict):
     task_data = request["params"]["task"]
     prompt = task_data["input"]["text"]
 
-    # Create system prompt for the creative task
-    system_prompt = """You are a poetic copywriter hired by a design studio.
-    Your goal is to describe any image prompt in one witty sentence.
-    Make it creative, clever and concise."""
-    
-    # Run the AI request in a thread pool to avoid blocking
-    result = await asyncio.get_event_loop().run_in_executor(
-        executor,
-        lambda: client.chat.completions.create(
-            model="gpt-4o-mini",  # Or another available model
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Create a witty one-sentence description for: {prompt}"}
-            ],
-            temperature=0.7,
-            max_tokens=100
-        )
+    # Run the CrewAI logic in a thread pool to avoid blocking
+    response_text = await asyncio.get_event_loop().run_in_executor(
+        executor, lambda: run_crew(prompt)
     )
-    
-    # Extract the response text
-    response_text = result.choices[0].message.content.strip()
     
     response_env = to_envelope(
         "a2a.status",
@@ -58,3 +66,8 @@ async def a2a_call(request: dict):
         }
     )
     return response_env
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
