@@ -2,15 +2,14 @@ import warnings
 
 # Suppress specific warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._config")
-warnings.filterwarnings("ignore", category=UserWarning, module="crewai.telemtry.telemetry")
+warnings.filterwarnings("ignore", category=UserWarning, module="crewai.telemetry.telemetry")
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain")
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from openai import OpenAI
 from a2a_utils import to_envelope
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-import os
 
 app = FastAPI(title="AI-Image-Writer")
 
